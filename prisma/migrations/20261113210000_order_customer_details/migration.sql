@@ -1,0 +1,4 @@
+ALTER TABLE "Order"
+ADD COLUMN "customerName" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "phoneNumber" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "deliveryAddress" TEXT NOT NULL DEFAULT '';

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getRequestUser } from "@/lib/auth";
+import { canPlaceOrders, canViewOwnOrders, getRequestUser } from "@/lib/auth";
 import { storeLocales } from "@/lib/catalog";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -11,6 +11,9 @@ export async function GET(request: NextRequest) {
   const user = await getRequestUser(request);
   if (!user) {
     return NextResponse.json({ error: "Sign in to view your orders." }, { status: 401 });
+  }
+  if (!canViewOwnOrders(user.email)) {
+    return NextResponse.json({ error: "Shop owner access is required." }, { status: 403 });
   }
 
   try {
@@ -38,6 +41,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Sign in before placing an order." }, { status: 401 });
   }
+  if (!canPlaceOrders(user.email)) {
+    return NextResponse.json({ error: "Shop owner access is required to place orders." }, { status: 403 });
+  }
 
   let body: unknown;
   try {
@@ -53,6 +59,20 @@ export async function POST(request: NextRequest) {
   const locale = body.locale ?? "en";
   if (typeof locale !== "string" || !storeLocales.includes(locale as (typeof storeLocales)[number])) {
     return NextResponse.json({ error: "Unsupported locale." }, { status: 400 });
+  }
+
+  const customerName = typeof body.customerName === "string" ? body.customerName.trim() : "";
+  const phoneNumber = typeof body.phoneNumber === "string" ? body.phoneNumber.trim() : "";
+  const deliveryAddress = typeof body.deliveryAddress === "string" ? body.deliveryAddress.trim() : "";
+  const phoneDigits = phoneNumber.replace(/\D/g, "");
+  if (customerName.length < 2 || customerName.length > 120) {
+    return NextResponse.json({ error: "Enter your full name (2 to 120 characters)." }, { status: 400 });
+  }
+  if (phoneNumber.length > 32 || phoneDigits.length < 7 || phoneDigits.length > 15) {
+    return NextResponse.json({ error: "Enter a valid phone number with 7 to 15 digits." }, { status: 400 });
+  }
+  if (deliveryAddress.length < 5 || deliveryAddress.length > 500) {
+    return NextResponse.json({ error: "Enter your delivery address and location (5 to 500 characters)." }, { status: 400 });
   }
 
   const quantities = new Map<string, number>();
@@ -141,12 +161,24 @@ export async function POST(request: NextRequest) {
         data: {
           userId: dbUser.id,
           email: user.email!,
+          customerName,
+          phoneNumber,
+          deliveryAddress,
           currency,
           totalCents,
           deliveryCity: dbUser.city,
           items: { create: items },
         },
-        select: { id: true, status: true, totalCents: true, currency: true, deliveryCity: true },
+        select: {
+          id: true,
+          status: true,
+          totalCents: true,
+          currency: true,
+          deliveryCity: true,
+          customerName: true,
+          phoneNumber: true,
+          deliveryAddress: true,
+        },
       });
     });
 

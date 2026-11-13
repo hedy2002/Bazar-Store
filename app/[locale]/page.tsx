@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCatalogProducts, storeLocales, type StoreLocale } from "@/lib/catalog";
 import { CustomItemRequestForm } from "@/components/custom-item-request-form";
+import { CatalogProducts } from "@/components/catalog-products";
 
 const locales = storeLocales;
 
@@ -22,6 +23,20 @@ const content: Record<
     collection: string;
     viewAll: string;
     emptyProducts: string;
+    emptySearch: string;
+    addToOrder: string;
+    orderDraft: string;
+    deliveryCity: string;
+    customerName: string;
+    phoneNumber: string;
+    deliveryAddress: string;
+    placeOrder: string;
+    signInToOrder: string;
+    loadMore: string;
+    orderPlaced: string;
+    instagramLabel: string;
+    instagramDescription: string;
+    stock: string;
     footer: string;
   }
 > = {
@@ -30,7 +45,7 @@ const content: Record<
     language: "English",
     announcement: "A little something good, delivered to your door.",
     search: "Search the store",
-    cart: "Bag",
+    cart: "Orders",
     eyebrow: "GOOD THINGS, CLOSE TO HOME",
     title: "Make room for\nthings you love.",
     description:
@@ -41,6 +56,20 @@ const content: Record<
     collection: "Everyday favourites",
     viewAll: "View all",
     emptyProducts: "No products are available in this language yet.",
+    emptySearch: "No products matched your search.",
+    addToOrder: "Add to order",
+    orderDraft: "Your order",
+    deliveryCity: "Delivery city",
+    customerName: "Full name",
+    phoneNumber: "Phone number",
+    deliveryAddress: "Delivery address and location (include street, area, or a nearby landmark)",
+    placeOrder: "Place B2B order",
+    signInToOrder: "Sign in to order",
+    loadMore: "Load more products",
+    orderPlaced: "Order placed",
+    instagramLabel: "Visit Fox Design on Instagram",
+    instagramDescription: "See more products and updates from Fox Design.",
+    stock: "Stock",
     footer: "Thoughtful finds for everyday life.",
   },
   ar: {
@@ -48,7 +77,7 @@ const content: Record<
     language: "العربية",
     announcement: "أشياء جميلة تصلك حتى باب بيتك.",
     search: "ابحث في المتجر",
-    cart: "السلة",
+    cart: "الطلبات",
     eyebrow: "أشياء جميلة من حولك",
     title: "أفسح المجال\nلما تحب.",
     description: "مجموعة مختارة بعناية من أساسيات الحياة اليومية، صُممت لتستخدمها وتحبها وتحتفظ بها.",
@@ -58,6 +87,20 @@ const content: Record<
     collection: "اختياراتنا اليومية",
     viewAll: "عرض الكل",
     emptyProducts: "لا توجد منتجات متاحة بهذه اللغة بعد.",
+    emptySearch: "لم يتم العثور على منتجات تطابق بحثك.",
+    addToOrder: "أضف إلى الطلب",
+    orderDraft: "طلبك",
+    deliveryCity: "مدينة التوصيل",
+    customerName: "الاسم الكامل",
+    phoneNumber: "رقم الهاتف",
+    deliveryAddress: "عنوان وموقع التوصيل (اذكر الشارع أو المنطقة أو معلماً قريباً)",
+    placeOrder: "إرسال طلب البيع بالجملة",
+    signInToOrder: "سجل الدخول للطلب",
+    loadMore: "عرض منتجات أخرى",
+    orderPlaced: "تم إرسال الطلب",
+    instagramLabel: "زيارة Fox Design على إنستغرام",
+    instagramDescription: "شاهد المزيد من المنتجات والتحديثات من Fox Design.",
+    stock: "المخزون",
     footer: "اختيارات مميزة للحياة اليومية.",
   },
   ckb: {
@@ -65,7 +108,7 @@ const content: Record<
     language: "کوردی",
     announcement: "شتێکی جوان، ڕاستەوخۆ بۆ دەرگای ماڵت.",
     search: "لە فرۆشگا بگەڕێ",
-    cart: "سەبەتە",
+    cart: "داواکارییەکان",
     eyebrow: "شتە جوانەکان لە نزیکەوە",
     title: "شوێن بکەرەوە\nبۆ ئەوەی خۆشت دەوێت.",
     description: "کۆمەڵەیەک لە پێداویستییە ڕۆژانەکان، بە وریایی هەڵبژێردراون بۆ بەکارهێنان و خۆشویستن.",
@@ -75,6 +118,20 @@ const content: Record<
     collection: "هەڵبژاردە ڕۆژانەکان",
     viewAll: "هەمووی ببینە",
     emptyProducts: "هێشتا هیچ بەرهەمێک بەو زمانە بەردەست نییە.",
+    emptySearch: "هیچ بەرهەمێک نەدۆزرایەوە کە لەگەڵ گەڕانەکەت بگونجێت.",
+    addToOrder: "زیاد بکە بۆ داواکاری",
+    orderDraft: "داواکارییەکەت",
+    deliveryCity: "شاری گەیاندن",
+    customerName: "ناوی تەواو",
+    phoneNumber: "ژمارەی تەلەفۆن",
+    deliveryAddress: "ناونیشان و شوێنی گەیاندن (شەقام، ناوچە یان شوێنێکی نزیک بنووسە)",
+    placeOrder: "داواکاری کۆمەڵەیی بنێرە",
+    signInToOrder: "بچۆ ژوورەوە بۆ داواکردن",
+    loadMore: "بەرهەمی زیاتر ببینە",
+    orderPlaced: "داواکاری نێردرا",
+    instagramLabel: "Fox Design لە ئینستاگرام ببینە",
+    instagramDescription: "بۆ بینینی بەرهەم و نوێکارییەکانی Fox Design سەردانی بکە.",
+    stock: "کۆگا",
     footer: "شتە جوانەکان بۆ ژیانی ڕۆژانە.",
   },
 };
@@ -95,8 +152,7 @@ export default async function StorePage({
 
   const selectedLocale = locale as StoreLocale;
   const copy = content[selectedLocale];
-  const { products } = await getCatalogProducts(selectedLocale, undefined, 8);
-  const numberLocale = selectedLocale === "ckb" ? "ckb-IQ" : selectedLocale === "ar" ? "ar-IQ" : "en-US";
+  const { products, nextCursor } = await getCatalogProducts(selectedLocale, undefined, 50);
 
   return (
     <main lang={selectedLocale} dir={copy.direction} className="min-h-screen">
@@ -132,17 +188,9 @@ export default async function StorePage({
           <Link href="/login" className="hidden text-sm font-semibold text-ink/70 hover:text-forest sm:inline">
             Sign in
           </Link>
-          <label className="hidden items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm text-ink/50 md:flex">
-            <span aria-hidden="true">⌕</span>
-            <input
-              aria-label={copy.search}
-              placeholder={copy.search}
-              className="w-32 bg-transparent outline-none placeholder:text-ink/45"
-            />
-          </label>
-          <button type="button" className="rounded-full border border-ink/15 px-4 py-2.5 text-sm font-semibold transition hover:bg-white">
-            {copy.cart} <span className="text-forest">· 0</span>
-          </button>
+          <Link href="/orders" className="rounded-full border border-ink/15 px-4 py-2.5 text-sm font-semibold transition hover:bg-white">
+            {copy.cart}
+          </Link>
         </div>
       </header>
 
@@ -189,37 +237,12 @@ export default async function StorePage({
           </a>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
-          {products.length ? (
-            products.map((product, index) => (
-              <article key={product.id} className="group min-w-0">
-                <div className={`relative flex aspect-[4/4.5] items-center justify-center overflow-hidden rounded-2xl ${["bg-[#d9e2d4]", "bg-[#ead8c3]", "bg-[#e2dce9]", "bg-[#e9e5c9]"][index % 4]}`}>
-                  {product.imageUrl ? (
-                    <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <>
-                      <div className="absolute h-36 w-36 rounded-full border border-white/60 transition-transform duration-500 group-hover:scale-125 sm:h-48 sm:w-48" />
-                      <span className="relative px-4 text-center text-xl font-semibold text-forest/75 sm:text-2xl">{product.name}</span>
-                    </>
-                  )}
-                </div>
-                <div className="flex items-start justify-between gap-2 px-1 pt-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{product.name}</p>
-                    <p className="mt-1 text-xs text-ink/55">{product.category}</p>
-                  </div>
-                  <p dir="ltr" className="shrink-0 text-sm font-semibold">
-                    {new Intl.NumberFormat(numberLocale, { style: "currency", currency: product.currency }).format(product.priceCents / 100)}
-                  </p>
-                </div>
-              </article>
-            ))
-          ) : (
-            <p className="col-span-full rounded-2xl bg-white px-5 py-8 text-center text-sm text-ink/60">
-              {copy.emptyProducts}
-            </p>
-          )}
-        </div>
+        <CatalogProducts
+          locale={selectedLocale}
+          initialProducts={products}
+          initialCursor={nextCursor}
+          labels={copy}
+        />
       </section>
 
       <CustomItemRequestForm locale={selectedLocale} />

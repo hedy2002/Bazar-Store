@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RetailerCity } from "@prisma/client";
 import { getRequestUser } from "@/lib/auth";
+import { getUserRole, hasPermission } from "@/lib/access-control";
 import { prisma } from "@/lib/prisma";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -10,6 +11,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export async function POST(request: NextRequest) {
   const user = await getRequestUser(request);
   if (!user) return NextResponse.json({ error: "Sign in to request an item." }, { status: 401 });
+  if (!hasPermission(getUserRole(user.email), "CREATE_ITEM_REQUESTS")) {
+    return NextResponse.json({ error: "Shop owner access is required to request an item." }, { status: 403 });
+  }
 
   try {
     let body: unknown;

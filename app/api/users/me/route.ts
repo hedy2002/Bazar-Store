@@ -2,11 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getRequestUser } from "@/lib/auth";
 import { RetailerCity } from "@prisma/client";
+import { getUserRole } from "@/lib/access-control";
+
+export async function GET(request: NextRequest) {
+  const user = await getRequestUser(request);
+  if (!user) return NextResponse.json({ error: "Sign in to view your profile." }, { status: 401 });
+
+  try {
+    const profile = await prisma.user.findUnique({
+      where: { authUserId: user.id },
+      select: { id: true, email: true, name: true, city: true },
+    });
+    return NextResponse.json({ role: getUserRole(user.email), profile });
+  } catch (error) {
+    console.error("Failed to load the authenticated user profile.", error);
+    return NextResponse.json({ error: "Unable to load the user profile." }, { status: 500 });
+  }
+}
 
 export async function POST(request: NextRequest) {
   const user = await getRequestUser(request);
   if (!user) {
     return NextResponse.json({ error: "Sign in to create your profile." }, { status: 401 });
+  }
+  if (getUserRole(user.email) !== "SHOP_OWNER") {
+    return NextResponse.json({ error: "Only shop owners can manage retailer profiles." }, { status: 403 });
   }
 
   try {

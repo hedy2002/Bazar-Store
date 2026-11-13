@@ -10,6 +10,9 @@ type Invoice = {
   status: string;
   currency: string;
   totalCents: number;
+  customerName: string;
+  phoneNumber: string;
+  deliveryAddress: string;
   deliveryCity: string;
   createdAt: string;
   retailer: { name: string | null; email: string };
@@ -81,12 +84,14 @@ export default function InvoicePage() {
             <section className="grid gap-5 py-6 sm:grid-cols-2">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-ink/50">Retailer</p>
-                <p className="mt-2 font-semibold">{invoice.retailer.name || invoice.retailer.email}</p>
+                <p className="mt-2 font-semibold">{invoice.customerName || invoice.retailer.name || invoice.retailer.email}</p>
                 <p className="mt-1 text-sm text-ink/60">{invoice.retailer.email}</p>
+                {invoice.phoneNumber && <p className="mt-1 text-sm text-ink/60">{invoice.phoneNumber}</p>}
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-ink/50">Delivery</p>
                 <p className="mt-2 font-semibold">{cities[invoice.deliveryCity]}</p>
+                {invoice.deliveryAddress && <p className="mt-1 whitespace-pre-line text-sm text-ink/60">{invoice.deliveryAddress}</p>}
                 <p className="mt-1 text-sm text-ink/60">Status: {invoice.status.replaceAll("_", " ")}</p>
               </div>
             </section>

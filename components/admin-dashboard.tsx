@@ -4,12 +4,16 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ItemRequestStatus, OrderStatus, RetailerCity } from "@prisma/client";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { AdminProductManager } from "@/components/admin-product-manager";
 
 type AdminOrder = {
   id: string;
   status: OrderStatus;
   totalCents: number;
   currency: string;
+  customerName: string;
+  phoneNumber: string;
+  deliveryAddress: string;
   deliveryCity: RetailerCity;
   createdAt: string;
   retailer: { name: string | null; email: string };
@@ -228,6 +232,8 @@ export function AdminDashboard() {
         </p>
       </section>
 
+      <AdminProductManager token={token} />
+
       {error && <p role="alert" className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {notice && <p role="status" className="mt-5 rounded-xl bg-green-50 px-4 py-3 text-sm text-green-800">{notice}</p>}
 
@@ -263,13 +269,13 @@ export function AdminDashboard() {
         <div className="overflow-x-auto rounded-2xl bg-white">
           <table className="w-full min-w-[780px] text-left text-sm">
             <thead className="bg-cream text-xs uppercase text-ink/55">
-              <tr><th className="px-4 py-3">Order / retailer</th><th className="px-4 py-3">Route</th><th className="px-4 py-3">Sales</th><th className="px-4 py-3">Gross profit</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Invoice</th></tr>
+              <tr><th className="px-4 py-3">Order / customer</th><th className="px-4 py-3">Delivery</th><th className="px-4 py-3">Sales</th><th className="px-4 py-3">Gross profit</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Invoice</th></tr>
             </thead>
             <tbody className="divide-y divide-ink/10">
               {orders.map((order) => (
                 <tr key={order.id}>
-                  <td className="px-4 py-3"><p className="font-medium">{order.retailer.name || order.retailer.email}</p><p className="mt-1 text-xs text-ink/50">{new Date(order.createdAt).toLocaleDateString()} · {order.id.slice(-8)}</p></td>
-                  <td className="px-4 py-3">{cities.find((item) => item.value === order.deliveryCity)?.label}</td>
+                  <td className="px-4 py-3"><p className="font-medium">{order.customerName || order.retailer.name || order.retailer.email}</p><p className="mt-1 text-xs text-ink/60">{order.phoneNumber || order.retailer.email}</p><p className="mt-1 text-xs text-ink/50">{new Date(order.createdAt).toLocaleDateString()} · {order.id.slice(-8)}</p></td>
+                  <td className="max-w-64 whitespace-normal px-4 py-3"><p>{cities.find((item) => item.value === order.deliveryCity)?.label}</p><p className="mt-1 text-xs text-ink/60">{order.deliveryAddress || "Address not provided on legacy order"}</p></td>
                   <td className="px-4 py-3">{money(order.totalCents, order.currency)}</td>
                   <td className="px-4 py-3">{money(order.profitCents, order.currency)}</td>
                   <td className="px-4 py-3">

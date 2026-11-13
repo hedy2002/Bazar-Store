@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { RetailerCity } from "@prisma/client";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
+import type { UserRole } from "@/lib/access-control";
 
 type StoreLocale = "en" | "ar" | "ckb";
 
@@ -63,6 +64,7 @@ const labels: Record<StoreLocale, {
 export function CustomItemRequestForm({ locale }: { locale: StoreLocale }) {
   const copy = labels[locale];
   const [token, setToken] = useState<string | null>(null);
+  const [role, setRole] = useState<UserRole | null>(null);
   const [itemName, setItemName] = useState("");
   const [details, setDetails] = useState("");
   const [city, setCity] = useState<RetailerCity>("SAYED_SADIQ");
@@ -72,9 +74,25 @@ export function CustomItemRequestForm({ locale }: { locale: StoreLocale }) {
   useEffect(() => {
     try {
       const supabase = createSupabaseBrowserClient();
-      supabase.auth.getSession().then(({ data }) => setToken(data.session?.access_token ?? null));
+      const syncRole = async (accessToken: string | null) => {
+        setToken(accessToken);
+        setRole(null);
+        if (!accessToken) return;
+        const response = await fetch("/api/users/me", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Could not verify your shop role.");
+        const result = await response.json();
+        setRole(result.role === "STORE_OWNER" || result.role === "SHOP_OWNER" ? result.role : null);
+      };
+      supabase.auth.getSession()
+        .then(({ data }) => syncRole(data.session?.access_token ?? null))
+        .catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Could not read your sign-in."));
       const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-        setToken(session?.access_token ?? null);
+        void syncRole(session?.access_token ?? null).catch((error: unknown) => {
+          setMessage(error instanceof Error ? error.message : "Could not verify your shop role.");
+        });
       });
       return () => listener.subscription.unsubscribe();
     } catch (error) {
@@ -106,6 +124,8 @@ export function CustomItemRequestForm({ locale }: { locale: StoreLocale }) {
     }
   }
 
+  if (role === "STORE_OWNER") return null;
+
   return (
     <section lang={locale} dir={locale === "en" ? "ltr" : "rtl"} className="mx-auto max-w-7xl px-5 pb-20 sm:px-8">
       <div className="rounded-3xl bg-white p-6 sm:p-9">
@@ -114,7 +134,7 @@ export function CustomItemRequestForm({ locale }: { locale: StoreLocale }) {
         <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
           {copy.description}
         </p>
-        {token ? (
+        {token && role === "SHOP_OWNER" ? (
           <form onSubmit={submit} className="mt-6 grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-medium">
               {copy.name}
@@ -150,6 +170,8 @@ export function CustomItemRequestForm({ locale }: { locale: StoreLocale }) {
               {message && <p role="status" className="text-sm text-ink/70">{message}</p>}
             </div>
           </form>
+        ) : token ? (
+          <p className="mt-5 text-sm text-ink/70">Verifying account permissions…</p>
         ) : (
           <p className="mt-5 text-sm text-ink/70">
             <Link href="/login" className="font-semibold text-forest underline underline-offset-4">{copy.signIn}</Link>

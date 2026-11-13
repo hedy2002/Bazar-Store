@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RetailerCity } from "@prisma/client";
-import { getRequestUser, isAdminEmail } from "@/lib/auth";
+import { canManageOrders, getRequestUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   const user = await getRequestUser(request);
   if (!user) return NextResponse.json({ error: "Sign in as an administrator." }, { status: 401 });
-  if (!isAdminEmail(user.email)) return NextResponse.json({ error: "Administrator access is required." }, { status: 403 });
+  if (!canManageOrders(user.email)) return NextResponse.json({ error: "Store owner access is required." }, { status: 403 });
 
   const city = request.nextUrl.searchParams.get("city");
   if (city && !Object.values(RetailerCity).includes(city as RetailerCity)) {
@@ -37,6 +37,9 @@ export async function GET(request: NextRequest) {
         status: order.status,
         currency: order.currency,
         totalCents: order.totalCents,
+        customerName: order.customerName,
+        phoneNumber: order.phoneNumber,
+        deliveryAddress: order.deliveryAddress,
         deliveryCity: order.deliveryCity,
         createdAt: order.createdAt,
         retailer: order.user,

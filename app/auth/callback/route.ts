@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
+import { canAccessAdmin } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
@@ -24,9 +25,13 @@ export async function GET(request: NextRequest) {
       },
     },
   });
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
     return NextResponse.redirect(new URL("/login?error=auth_callback", request.url));
   }
+  response.headers.set(
+    "Location",
+    new URL(canAccessAdmin(data.user.email) ? "/admin" : "/en", request.url).toString(),
+  );
   return response;
 }

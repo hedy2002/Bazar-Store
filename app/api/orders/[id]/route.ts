@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestUser, isAdminEmail } from "@/lib/auth";
+import { canAccessAdmin, getRequestUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -26,7 +26,7 @@ export async function GET(
     });
 
     if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
-    if (order.user.authUserId !== user.id && !isAdminEmail(user.email)) {
+    if (order.user.authUserId !== user.id && !canAccessAdmin(user.email)) {
       return NextResponse.json({ error: "You cannot access this order." }, { status: 403 });
     }
 
@@ -36,6 +36,9 @@ export async function GET(
         status: order.status,
         currency: order.currency,
         totalCents: order.totalCents,
+        customerName: order.customerName,
+        phoneNumber: order.phoneNumber,
+        deliveryAddress: order.deliveryAddress,
         deliveryCity: order.deliveryCity,
         createdAt: order.createdAt,
         retailer: { name: order.user.name, email: order.user.email },

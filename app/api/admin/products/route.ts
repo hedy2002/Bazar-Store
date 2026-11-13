@@ -3,9 +3,10 @@ import { Readable } from "node:stream";
 import ExcelJS from "exceljs";
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestUser, isAdminEmail } from "@/lib/auth";
+import { canManageProducts, getRequestUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { storeLocales, type StoreLocale } from "@/lib/catalog";
+import { parseAdminProductInput, type AdminProductInput } from "@/lib/admin-products";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -14,6 +15,7 @@ const maxUploadBytes = 4 * 1024 * 1024;
 const maxRows = 5000;
 const locales = storeLocales;
 const baseHeaders = ["slug", "priceCents", "costPriceCents", "stock", "currency", "imageUrl", "active"];
+const exportHeaders = [...baseHeaders, "specifications"];
 
 type ImportProduct = {
   slug: string;
@@ -23,12 +25,10 @@ type ImportProduct = {
   currency: string;
   imageUrl: string | null;
   active: boolean;
+  specifications: string | null;
+  specificationsProvided: boolean;
   translations: { locale: StoreLocale; name: string; description: string | null; category: string }[];
 };
-
-function isAdmin(user: Awaited<ReturnType<typeof getRequestUser>>) {
-  return Boolean(user && isAdminEmail(user.email));
-}
 
 function text(value: ExcelJS.CellValue): string {
   if (value === null || value === undefined) return "";
@@ -48,6 +48,35 @@ function parseInteger(value: string, field: string, row: number, minimum = 0) {
     throw new Error(`Row ${row}: ${field} is outside the supported range.`);
   }
   return parsed;
+}
+
+function parseImportSpecifications(value: string, row: number) {
+  if (!value) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error(`Row ${row}: specifications must be valid JSON.`);
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`Row ${row}: specifications must be a JSON object.`);
+  }
+  const entries = Object.entries(parsed);
+  if (
+    entries.length > 40 ||
+    entries.some(([key, item]) =>
+      !key.trim() ||
+      key.length > 60 ||
+      (typeof item !== "string" && typeof item !== "number" && typeof item !== "boolean") ||
+      (typeof item === "string" && item.length > 500) ||
+      (typeof item === "number" && !Number.isFinite(item)),
+    )
+  ) {
+    throw new Error(`Row ${row}: specifications have invalid names or values.`);
+  }
+  const serialized = JSON.stringify(parsed);
+  if (serialized.length > 8_000) throw new Error(`Row ${row}: specifications must be 8 KB or smaller.`);
+  return serialized;
 }
 
 async function parseImport(file: File): Promise<ImportProduct[]> {
@@ -146,6 +175,10 @@ async function parseImport(file: File): Promise<ImportProduct[]> {
       currency,
       imageUrl,
       active: activeText === "true" || activeText === "1",
+      specificationsProvided: headerIndexes.has("specifications"),
+      specifications: headerIndexes.has("specifications")
+        ? parseImportSpecifications(get("specifications"), rowNumber)
+        : null,
       translations,
     });
   });
@@ -162,13 +195,18 @@ function csvSafe(value: string | number | boolean | null) {
 export async function GET(request: NextRequest) {
   const user = await getRequestUser(request);
   if (!user) return NextResponse.json({ error: "Sign in as an administrator." }, { status: 401 });
-  if (!isAdmin(user)) return NextResponse.json({ error: "Administrator access is required." }, { status: 403 });
+  if (!canManageProducts(user.email)) return NextResponse.json({ error: "Store owner access is required." }, { status: 403 });
 
   try {
     const products = await prisma.product.findMany({
       orderBy: { slug: "asc" },
       include: { translations: true },
     });
+    const formatParam = request.nextUrl.searchParams.get("format");
+    if (!formatParam) {
+      return NextResponse.json({ products });
+    }
+
     const translationsByProduct = new Map(
       products.map((product) => [
         product.id,
@@ -178,7 +216,7 @@ export async function GET(request: NextRequest) {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Products");
     sheet.addRow([
-      ...baseHeaders,
+      ...exportHeaders,
       ...locales.flatMap((locale) => [`name_${locale}`, `category_${locale}`, `description_${locale}`]),
     ]);
 
@@ -192,6 +230,7 @@ export async function GET(request: NextRequest) {
         product.currency,
         product.imageUrl,
         product.active,
+        product.specifications === null ? "" : JSON.stringify(product.specifications),
       ];
       for (const locale of locales) {
         const translation = translations.get(locale);
@@ -204,7 +243,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const format = request.nextUrl.searchParams.get("format") === "csv" ? "csv" : "xlsx";
+    const format = formatParam === "csv" ? "csv" : "xlsx";
     const data =
       format === "csv"
         ? await workbook.csv.writeBuffer()
@@ -227,9 +266,44 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await getRequestUser(request);
   if (!user) return NextResponse.json({ error: "Sign in as an administrator." }, { status: 401 });
-  if (!isAdmin(user)) return NextResponse.json({ error: "Administrator access is required." }, { status: 403 });
+  if (!canManageProducts(user.email)) return NextResponse.json({ error: "Store owner access is required." }, { status: 403 });
 
   try {
+    if (request.headers.get("content-type")?.includes("application/json")) {
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
+      }
+
+      let productInput: AdminProductInput;
+      try {
+        productInput = parseAdminProductInput(body);
+      } catch (error) {
+        return NextResponse.json(
+          { error: error instanceof Error ? error.message : "Product details are invalid." },
+          { status: 400 },
+        );
+      }
+
+      try {
+        const product = await prisma.product.create({
+          data: {
+            ...productInput,
+            translations: { create: productInput.translations },
+          },
+          include: { translations: true },
+        });
+        return NextResponse.json({ product }, { status: 201 });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          return NextResponse.json({ error: "A product with that slug already exists." }, { status: 409 });
+        }
+        throw error;
+      }
+    }
+
     const formData = await request.formData();
     const file = formData.get("file");
     if (!(file instanceof File)) {
@@ -247,6 +321,9 @@ export async function POST(request: NextRequest) {
     }
 
     const importedAt = new Date();
+    const specificationUpdate = products[0].specificationsProvided
+      ? Prisma.sql`"specifications" = EXCLUDED."specifications",`
+      : Prisma.empty;
     const result = await prisma.$transaction(async (transaction) => {
       for (let offset = 0; offset < products.length; offset += 200) {
         const batch = products.slice(offset, offset + 200);
@@ -259,12 +336,13 @@ export async function POST(request: NextRequest) {
           ${product.imageUrl},
           ${product.stock},
           ${product.active},
+          ${product.specifications}::jsonb,
           ${importedAt},
           ${importedAt}
         )`);
 
         await transaction.$executeRaw(Prisma.sql`
-          INSERT INTO "Product" ("id", "slug", "priceCents", "costPriceCents", "currency", "imageUrl", "stock", "active", "createdAt", "updatedAt")
+          INSERT INTO "Product" ("id", "slug", "priceCents", "costPriceCents", "currency", "imageUrl", "stock", "active", "specifications", "createdAt", "updatedAt")
           VALUES ${Prisma.join(values)}
           ON CONFLICT ("slug") DO UPDATE SET
             "priceCents" = EXCLUDED."priceCents",
@@ -273,6 +351,7 @@ export async function POST(request: NextRequest) {
             "imageUrl" = EXCLUDED."imageUrl",
             "stock" = EXCLUDED."stock",
             "active" = EXCLUDED."active",
+            ${specificationUpdate}
             "updatedAt" = EXCLUDED."updatedAt"
         `);
       }
@@ -308,5 +387,88 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Failed to import products.", error);
     return NextResponse.json({ error: "Unable to import products. No partial import was saved." }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  const user = await getRequestUser(request);
+  if (!user) return NextResponse.json({ error: "Sign in as a store owner." }, { status: 401 });
+  if (!canManageProducts(user.email)) return NextResponse.json({ error: "Store owner access is required." }, { status: 403 });
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
+  }
+  if (typeof body !== "object" || body === null || !("id" in body) || typeof body.id !== "string" || !body.id) {
+    return NextResponse.json({ error: "A product ID is required." }, { status: 400 });
+  }
+
+  let productInput: AdminProductInput;
+  try {
+    productInput = parseAdminProductInput(body);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Product details are invalid." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const product = await prisma.product.update({
+      where: { id: body.id },
+      data: {
+        ...productInput,
+        translations: {
+          deleteMany: {},
+          create: productInput.translations,
+        },
+      },
+      include: { translations: true },
+    });
+    return NextResponse.json({ product });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return NextResponse.json({ error: "Product not found." }, { status: 404 });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return NextResponse.json({ error: "A product with that slug already exists." }, { status: 409 });
+    }
+    console.error("Failed to update product.", error);
+    return NextResponse.json({ error: "Unable to update product." }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const user = await getRequestUser(request);
+  if (!user) return NextResponse.json({ error: "Sign in as a store owner." }, { status: 401 });
+  if (!canManageProducts(user.email)) return NextResponse.json({ error: "Store owner access is required." }, { status: 403 });
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
+  }
+  if (typeof body !== "object" || body === null || !("id" in body) || typeof body.id !== "string" || !body.id) {
+    return NextResponse.json({ error: "A product ID is required." }, { status: 400 });
+  }
+
+  try {
+    await prisma.product.delete({ where: { id: body.id } });
+    return NextResponse.json({ deleted: true });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return NextResponse.json({ error: "Product not found." }, { status: 404 });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      return NextResponse.json(
+        { error: "This product is in an order and cannot be deleted. Deactivate it instead." },
+        { status: 409 },
+      );
+    }
+    console.error("Failed to delete product.", error);
+    return NextResponse.json({ error: "Unable to delete product." }, { status: 500 });
   }
 }
