@@ -66,6 +66,7 @@ The public catalog endpoint supports pagination and search: `GET /api/products?l
 
 - `npm run dev` — local development server
 - `npm run build` — generate Prisma Client and build Next.js
+- `npm run lint` — run ESLint with the Next.js configuration
 - `npm run typecheck` — run TypeScript checks
 - `npm run db:migrate -- --name change_name` — create/apply a local migration
 - `npm run db:deploy` — apply committed migrations to the configured database
